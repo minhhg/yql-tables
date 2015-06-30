@@ -24,127 +24,154 @@
             </inputs>
             <execute>
             <![CDATA[
-		    //UTILITY: pad string with leading char		
-			String.prototype.pad = function ( padchar, padlen )
-			{
-				s = this
-				
-				while (s.length < padlen)
-				{
-					s = padchar + s;
-				}
-						
-				return s;
-			}
-			
-            //UTILITY: convert string to INTEGER		 
-			String.prototype.toInt = function ()
-			{
-				// remove leading 0's because otherwise 
-				// str can be interpreted as Octal
-				var str = this.replace( /^0+/, '' );
+var reporttype_code = "cf"; // Tell financials we want the cash flow
 
-				// also the thousands comma was cousing trouble
-				str = str.trim()
-                str = str.replace( /\,/g, '' );
+//%begin-include lib/financials.inc
 
-                // replace M with 6 ZEROs, B with 9 ZEROs (UPDATE THIS - ACCOUNT FOR DECIMAL!!
-                //str = str.replace(/M/g,'000000');
-                //str = str.replace(/B/g,'000000000');
+// Scraper for the financials: the income statement, the balance sheet, and
+// the cash flow statement. Expects reporttype_code to indicate which ('is',
+// 'bs', 'cf'). Hopefully, the three will remain scrapable by common code.
 
-				return parseInt( str );
-			}	
-		    //UTILITY: trim whitespace		 
-			String.prototype.trim = function ()
-			{
-				var str = this.replace( /^\s\s*/, "" ),
-				ws = /\s/,
-				i = str.length;
-				while ( ws.test( str.charAt( --i ) ) );
-				return str.slice( 0, i + 1 );
-			}
-            
-            // Setup Query from finance.yahoo.com
-            var reporttype_code = "";
-            //reporttype = y.context.table;
-            if(reporttype == "incomestatement"){reporttype_code = "is";}
-            else if(reporttype == "balancesheet"){reporttype_code = "bs";}
-            else if(reporttype == "cashflow"){reporttype_code = "cf";}
-            var url="http://finance.yahoo.com/q/"+ reporttype_code + "?s=" + symbol + "&" + timeframe;
-			var restquery = y.rest( url );	
-			var rawresult = restquery.accept( "text/html" ).get().response;
-			var query = y.xpath( rawresult, "//table[@class='yfnc_tabledata1']/tr/td/table/tr");	
+// -----------------------------------------------------------------------------
+// Commonly needed functions ...
 
-            // Process Results
-            var outputdata = <{reporttype} symbol={symbol} timeframe={timeframe}></{reporttype}>;
-			if ( query.*.length() !== 0 )
-			{
-                //TODO: if re-write the reading of the columns slightly, same file can be shared
-                //TODO:     for all 3 financial statements.  income statement is a td element, followed by 3 th elements
-                //TODO:     cash / balance sheet are simply 4 td elements - this is only difference between tables!
+// Returns the text below the passed node as a trimmed string (YQL's trim
+// method appears not to strip newlines).
+function allText(node) {
+    var text = [];
+    for each (var x in node.descendants()) {
+        if (x.nodeKind() == 'text')
+            text.push(x);
+    }
+    return text.join(' ').replace(/^\s+|\s+$/g, '');
+}
 
-                var y = 0; var x = 0;
-                var numcolumns = 0;
-                var data_array = new Array();
-            
-                // Read Column Headings
-                data_array[0] = new Array()
-                data_array[0][0] = "Headings"
-                for each ( var th in query[0].td)
-                {
-                    data_array[x] = new Array();
-                    data_array[x][y] = th.*.text().toString();
-                    //outputdata.appendChild(<column x={x} y={y}>{data_array[x][y]}</column>);
-                    x++;
-                }
-                numcolumns = x;
+// Converts an HTML display name into a JavaScript identifier. Also
+// splits out any parenthesized qualifying term, such as "ttm",
+// "intraday", "mrq", or "yoy".
+function makeFieldName(name) {
+    name = String(name).replace(/:/g, '');
+    var m = name.match(/^(.*?)\s*\((.+?)\)\s*$/);
+    var term = null;
+    if (m) {
+        name = m[1];
+        term = m[2];
+    }
+    name = name.replace(/\b(.)/g, function(s){
+        return s.toUpperCase();
+    });
+    name = name.replace(/[\s-]+/g, '');
+    name = name.replace(/%/g, 'Pct');
+    name = name.replace(/&/g, 'And');
+    name = name.replace(/([a-z])\//g, '$1To');
+    name = name.replace(/\W/g, '');
+    if (/^\d/.test(name))
+        name = 'P_' + name;
+    return {name:name, term:term};
+}
 
-                // Read Rows
-                y = 1;            
-                var i = 1;
-                while ( i < query.length()) 
-			    {
-                    var row = query[i];
-                    if(row.td.length() >= numcolumns){
-                        x = 0;
-                        // read each column in row
-                        for each (var column in row.td){
-                            if("spacer" in column)
-                            {}
-                            else{
-                                var dataitem = column.*.text().toString();
-                                dataitem = String(dataitem.replace(/\s+/g,""));
-                                dataitem = String(dataitem.replace(/,/g,""));
-                                dataitem = String(dataitem.replace(/\//g,"_"));
-                                if(dataitem.match(/^[\(\)]/)){
-                                    dataitem =  Number(dataitem.replace(/[\(\)]/g,"")) * -1000;
-                                } else if(dataitem.match(/^[0-9]{1,}$/)){
-                                    dataitem = Number(dataitem) * 1000;
-                                }
-                                data_array[x][y] = dataitem;
-                                //outputdata.appendChild(<row x={x} y={y}>{dataitem}</row>); 
-                                x++;
-                            }
-                        }
-                        y++;
-                    }
-                    i++;
-                }
-                var numrows = y;
-                x = 0; y = 0;
-                for(x = 1; x < numcolumns; x++){
-                    var period = data_array[x][0];
-                    var financial_period = <statement period={period}></statement>;
-                    for(y = 1; y < numrows; y++){
-                        row_name = data_array[0][y];
-                        data = data_array[x][y];
-                        financial_period.appendChild(<{row_name} report_row={y}>{data}</{row_name}>);
-                    }
-                    outputdata.appendChild(financial_period);
-                }
+// Normalizes suffixed Yahoo Finance numbers to numeric values.
+// Deletes %-signs. Multiplies by scale, if provided.
+function parseNumber(n, scale) {
+    if (!n)
+        return n;
+    n = String(n);
+    if (/^\s*(?:[nN]\/?[aA])|-\s*$/.test(n))
+        return '';
+    var m = n.match(/^\s*(?:\(\s*([0-9.,]+[bBmMkK%]?)\s*\))\s*$/);
+    if (m)
+        n = '-' + m[1];
+    var m = n.match(/^\s*(?:([+-])\s*)?([0-9.,]+)\s*([BbMmKk%]?)\s*$/);
+    if (!m)
+        return n
+    var value = (m[1] == '-' ? -1 : 1) * m[2].replace(/,/g, '');
+    switch (m[3]) {
+        case 'b':
+        case 'B':
+            value = +(value + 'e9');
+            break;
+        case 'm':
+        case 'M':
+            value = +(value + 'e6');
+            break;
+        case 'k':
+        case 'K':
+            value = +(value + 'e3');
+            break;
+        default:
+            value = +value;
+    }
+    if (scale)
+        value *= scale;
+    return value;
+}
+// -----------------------------------------------------------------------------
+
+// Assumes reporttype_code has been set to one of 'is', 'bs', or 'cf'.
+var url = "http://finance.yahoo.com/q/" + reporttype_code + "?s=" + symbol + "&" + timeframe;
+var restquery = y.rest(url);
+var rawresult = restquery.accept("text/html").get().response;
+var query = y.xpath(rawresult, "//table[@class='yfnc_tabledata1']//tr/td/table//tr");
+
+// Process Results
+var outputdata = <{reporttype} symbol={symbol} timeframe={timeframe}></{reporttype}>;
+if (query.*.length() !== 0)
+{
+    var c = 0;
+    var numcolumns = 0;
+    var data_array = new Array();
+
+    // Read Column Headings
+    data_array[0] = new Array();
+    data_array[0][0] = "Headings";
+    for each (var node in query[0].*)
+    {
+        data_array[c] = new Array();
+        data_array[c][0] = allText(node);
+        c++;
+    }
+    numcolumns = c;
+
+    // Read Rows
+    var r = 1;
+    var i = 1;
+    while (i < query.length())
+    {
+        var row = query[i];
+        if(row.td.length() >= numcolumns){
+            c = 0;
+            // read each column in row
+            for each (var column in row.td){
+                if ("spacer" in column)
+                    continue;
+                var dataitem = allText(column);
+                if (c == 0)
+                    dataitem = makeFieldName(dataitem).name;
+                else
+                    dataitem = parseNumber(dataitem, 1000);
+                data_array[c][r] = dataitem;
+                c++;
             }
-            // Return statsdata strucuture
-            response.object = outputdata;
+            r++;
+        }
+        i++;
+    }
+    var numrows = r;
+
+    // Append the results to the XML tree
+    for(c = 1; c < numcolumns; c++){
+        var period = data_array[c][0];
+        var financial_period = <statement period={period}></statement>;
+        for(r = 1; r < numrows; r++){
+            row_name = data_array[0][r];
+            data = data_array[c][r];
+            financial_period.appendChild(<{row_name} report_row={r}>{data}</{row_name}>);
+        }
+        outputdata.appendChild(financial_period);
+    }
+}
+response.object = outputdata;
+//%end-include 99ffcfaadcfd783e96bb351bf2d9c6c430efc3e5
 		]]>
             </execute>
         </select>

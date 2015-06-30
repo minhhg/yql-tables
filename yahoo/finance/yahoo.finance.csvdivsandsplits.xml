@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<table xmlns="http://query.yahooapis.com/v1/schema/table.xsd">
+    <meta>
+        <description>
+            Queries the Yahoo CSV historical data service to obtain past price,
+            dividend, and split history. Provide:
+
+              * symbol(s)
+              * startDate as YYYY-MM-DD
+              * endDate as YYYY-MM-DD (defaults to today GMT)
+              * granularity (the g parameter), which may be 'd', 'w',
+                or 'm', corresponding to daily, weekly, or monthly,
+                or 'v', meaning just return dividends and splits
+
+            The returned data consists of an element for each stock, identified
+            by a 'symbol' attribute, containing a row element for each row
+            returned, containing a coln element for each comma-separated datum
+            in the row.
+
+            There will be a variable number of col elements per row. The client
+            program must examine each row to determine what type it is: a
+            dividend, a split, trading data, or metadata. Generally, it is
+            sufficient to examine the col0 element in a row. If it is a
+            date, the remaining items will be the open, hi, lo, close, volume,
+            and adjusted close. Special items will start with a word specifying
+            the type, e.g., DIVIDEND or SPLIT or some type of metadata.
+        </description>
+        <sampleQuery>
+            select * from {table} where symbol in ('AAPL','GOOGL','YHOO')
+                and g='m'
+                and startDate='2014-01-01' and endDate='2015-01-01'
+        </sampleQuery>
+    </meta>
+    <bindings>
+        <select itemPath="" produces="XML">
+            <urls><url></url></urls>
+            <inputs>
+                <key id='symbol' type='xs:string' paramType='path'
+                                                    required='true'/>
+                <key id='g' type='xs:string' paramType='variable'
+                                                    required='true'/>
+                <key id='startDate' type='xs:string' paramType='variable'
+                                                    required='true'/>
+                <key id='endDate' type='xs:string' paramType='variable'
+                                                    required='false'/>
+            </inputs>
+            <execute><![CDATA[
+//%begin-include lib/parseDate.js
+// Returns the year, month, and day corresponding to the input date,
+// which should be in the form yyyy-mm-dd. Returns today's date if
+// date omitted.
+function parseDate(date) {
+    var d = new Date;
+    if (date) {
+        var m = date.match(/^(\d\d\d\d)-(\d+)-(\d+)$/);
+        if (!m)
+            throw "Invalid date: '" + date + "'";
+        var d = new Date(m[1], m[2]-1, m[3]);
+    }
+    return {y:d.getFullYear(), m:d.getMonth(), d:d.getDate()};
+}
+//%end-include eb3a754dc5c86babc736a5d5381bca1e618e3ac0
+
+var s = parseDate(startDate);
+var e = parseDate(endDate);
+var url = "http://ichart.yahoo.com/x?y=0&z=99999&s=" + symbol +
+                '&a=' + s.m + '&b=' + s.d + '&c=' + s.y +
+                '&d=' + e.m + '&e=' + e.d + '&f=' + e.y + '&g=' + g;
+var results = y.query("select * from csv where url='" + url + "'").results;
+results.@symbol = symbol;
+response.object = results;
+      ]]></execute>
+        </select>
+    </bindings>
+</table>

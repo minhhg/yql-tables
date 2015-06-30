@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+cd $(dirname $0)/..
+bin/batch-test.py <<END
+yahoo.finance.analystestimate.xml
+yahoo.finance.balancesheet.xml
+yahoo.finance.cashflow.xml
+yahoo.finance.csvdivsandsplits.xml
+yahoo.finance.csvhistory.xml
+yahoo.finance.csvquote.xml
+yahoo.finance.incomestatement.xml
+yahoo.finance.keystats.xml
+yahoo.finance.stocks.xml
+END

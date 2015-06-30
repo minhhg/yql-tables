@@ -2,7 +2,8 @@
 <table xmlns="http://query.yahooapis.com/v1/schema/table.xsd">
     <meta>
         <author>
-            Ryan Hoium
+            Original: Ryan Hoium
+            Updated by: James Dyer
         </author>
         <description>
             Yahoo Finance - Key Statistics by Stock Symbol
@@ -18,118 +19,131 @@
                 </url>
             </urls>
             <inputs>
-            	<key id="symbol" type="xs:string" paramType="variable" required="true" />
+            <key id="symbol" type="xs:string" paramType="variable" required="true" />
+            <key id="terms" type="xs:string" paramType="variable"
+                    default="true" required="false" />
             </inputs>
             <execute>
                 <![CDATA[
-		    //UTILITY: pad string with leading char		
-			String.prototype.pad = function ( padchar, padlen )
-			{
-				s = this
-				
-				while (s.length < padlen)
-				{
-					s = padchar + s;
-				}
-						
-				return s;
-			}
-			
-            //UTILITY: convert string to INTEGER		 
-			String.prototype.toInt = function ()
-			{
-				// remove leading 0's because otherwise 
-				// str can be interpreted as Octal
-				var str = this.replace( /^0+/, '' );
+// for (var x=10; x>0; x--)
+//     y.log('' + x)
+// y.log("We're going to bomb!");
+// y.bender();
+//%begin-include lib/common.inc
 
-				// also the thousands comma was cousing trouble
-				str = str.trim()
-                str = str.replace( /\,/g, '' );
+// -----------------------------------------------------------------------------
+// Commonly needed functions ...
 
-                // replace M with 6 ZEROs, B with 9 ZEROs (UPDATE THIS - ACCOUNT FOR DECIMAL!!
-                //str = str.replace(/M/g,'000000');
-                //str = str.replace(/B/g,'000000000');
+// Returns the text below the passed node as a trimmed string (YQL's trim
+// method appears not to strip newlines).
+function allText(node) {
+    var text = [];
+    for each (var x in node.descendants()) {
+        if (x.nodeKind() == 'text')
+            text.push(x);
+    }
+    return text.join(' ').replace(/^\s+|\s+$/g, '');
+}
 
-				return parseInt( str );
-			}	
-		    //UTILITY: trim whitespace		 
-			String.prototype.trim = function ()
-			{
-				var str = this.replace( /^\s\s*/, "" ),
-				ws = /\s/,
-				i = str.length;
-				while ( ws.test( str.charAt( --i ) ) );
-				return str.slice( 0, i + 1 );
-			}
-            
-            // Setup Query from finance.yahoo.com
-            var url="http://finance.yahoo.com/q/ks?s=" + symbol;
-			var restquery = y.rest( url );	
-			var rawresult = restquery.accept( "text/html" ).get().response;
-			var keystatsquery = y.xpath(
-                                    rawresult,
-                                    "//table[@class='yfnc_datamodoutline1']/tr/td/table/tr" +
-                                    "/td[@class='yfnc_tabledata1' or @class='yfnc_tablehead1']"
-                                );	
+// Converts an HTML display name into a JavaScript identifier. Also
+// splits out any parenthesized qualifying term, such as "ttm",
+// "intraday", "mrq", or "yoy".
+function makeFieldName(name) {
+    name = String(name).replace(/:/g, '');
+    var m = name.match(/^(.*?)\s*\((.+?)\)\s*$/);
+    var term = null;
+    if (m) {
+        name = m[1];
+        term = m[2];
+    }
+    name = name.replace(/\b(.)/g, function(s){
+        return s.toUpperCase();
+    });
+    name = name.replace(/[\s-]+/g, '');
+    name = name.replace(/%/g, 'Pct');
+    name = name.replace(/&/g, 'And');
+    name = name.replace(/([a-z])\//g, '$1To');
+    name = name.replace(/\W/g, '');
+    if (/^\d/.test(name))
+        name = 'P_' + name;
+    return {name:name, term:term};
+}
 
+// Normalizes suffixed Yahoo Finance numbers to numeric values.
+// Deletes %-signs. Multiplies by scale, if provided.
+function parseNumber(n, scale) {
+    if (!n)
+        return n;
+    n = String(n);
+    if (/^\s*(?:[nN]\/?[aA])|-\s*$/.test(n))
+        return '';
+    var m = n.match(/^\s*(?:\(\s*([0-9.,]+[bBmMkK%]?)\s*\))\s*$/);
+    if (m)
+        n = '-' + m[1];
+    var m = n.match(/^\s*(?:([+-])\s*)?([0-9.,]+)\s*([BbMmKk%]?)\s*$/);
+    if (!m)
+        return n
+    var value = (m[1] == '-' ? -1 : 1) * m[2].replace(/,/g, '');
+    switch (m[3]) {
+        case 'b':
+        case 'B':
+            value = +(value + 'e9');
+            break;
+        case 'm':
+        case 'M':
+            value = +(value + 'e6');
+            break;
+        case 'k':
+        case 'K':
+            value = +(value + 'e3');
+            break;
+        default:
+            value = +value;
+    }
+    if (scale)
+        value *= scale;
+    return value;
+}
+// -----------------------------------------------------------------------------
+//%end-include f669ba5733f2ca3487833d65cb47362dc3f40f5f
 
-            // Process Results
-            var statsdata = <stats symbol={symbol}></stats>;
-			if ( keystatsquery.*.length() != 0 )
-			{
+// Setup Query from finance.yahoo.com
+var terms = /^[tTyY]/.test(terms);
+var url="http://finance.yahoo.com/q/ks?s=" + symbol;
+var xpath = "//table[@class='yfnc_datamodoutline1']//tr/td/table//tr/td[@class='yfnc_tabledata1' or @class='yfnc_tablehead1']";
+var query = y.query("select * from html where url=@url and compat='html5' and xpath=@xpath", {url:url, xpath:xpath});
+var keystatsquery = query.results;
 
-            var i = 0;
-            while ( i < keystatsquery.length()) 
-			{
-                // Setup to Process Two 'td' Elements at a Time - Name and Value Pairs
-                var td_param_name = keystatsquery[i];
-                var td_value = keystatsquery[i+1];
-                var param_name = "";
-                var attr = "";
-                var value = "";
-                i = i + 2;
-                
-                // Process Parameter Name and any Associated Attributes (Timeframe, Stock Split Info)
-                param_name = td_param_name.p.text().toString();
-                param_name = String(param_name.replace(/:/g,""));
-                attr = String(param_name.match(/\(.*\)/));
-                attr = String(attr.trim());
-                attr = attr.replace(/[\(\)]/g,"");
-                param_name = String(param_name.replace(/\(.*\)/g,""));
-                param_name = String(param_name.replace(/\s/g,""));
-                param_name = String(param_name.replace(/\&/g,""));
-                param_name = String(param_name.replace(/\//g,""));
-                param_name = String(param_name.replace(/\%/g,"Percentage"));
-                param_name = String(param_name.replace(/-/g,"_"));
-                if(param_name.match(/^\d/)){ param_name = String("p_" + param_name);}
-                param_name = param_name.trim();
+// Process Results
+var statsdata = <stats symbol={symbol}></stats>;
+if (keystatsquery.td.length() !== 0) {
+    var i = 0;
+    while (i < keystatsquery.td.length())
+    {
+        // Setup to Process Two 'td' Elements at a Time - Name and Value Pairs
+        var td_param_name = keystatsquery.td[i];
+        var td_value = keystatsquery.td[i+1];
+        i += 2;
 
-                // Process Value Information
-                value = td_value.p.text().toString();
-                // Catch When it is Span Tag instead of P tag
-                if( value == false){
-                    value = td_value.span.text().toString();
-                }
-                //Replace B, M, K with Proper Trailing Zeroes/Decimal Handling
-                if(value.match(/[Bb]$/)){ value = value.replace(/[Bb]$/,""); value = value * 1000000000;}
-                else if(value.match(/[Mm]$/)){ value = value.replace(/[Mm]$/,""); value = value * 1000000;}
-                else if(value.match(/[Kk]$/)){ value = value.replace(/[Kk]$/,""); value = value * 1000;}
+        // Process Parameter Name and any Associated Attributes (Timeframe, Stock Split Info)
+        var parm = makeFieldName(td_param_name.text().toString());
 
-                // Append Value Pair to XML Structure
-                if(attr !== "null"){ statsdata.appendChild(<{param_name} term={attr}> {value} </{param_name}>);}
-                else {  statsdata.appendChild(<{param_name}> {value} </{param_name}>);}
+        // Process Value Information
+        value = (td_value.text() || td_value.span.text()).toString();
+        value = parseNumber(value);
 
-			}		
-		    }
-            // Return statsdata strucuture
-            response.object = statsdata;
-
-
-	
-
-					 
-					 
-		]]>
+        // Append Value Pair to XML Structure
+        if (terms && parm.term) {
+            statsdata.appendChild(<{parm.name} term={parm.term}>{value}</{parm.name}>);
+        }
+        else {
+            statsdata.appendChild(<{parm.name}>{value}</{parm.name}>);
+        }
+    }
+}
+// Return statsdata strucuture
+response.object = statsdata;
+            ]]>
             </execute>
         </select>
     </bindings>

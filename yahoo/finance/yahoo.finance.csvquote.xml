@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<table xmlns="http://query.yahooapis.com/v1/schema/table.xsd">
+    <meta>
+        <description>
+            Queries the Yahoo CSV stock quote data service. In the WHERE clause,
+            you must provide a list of one or more ticker symbols. Optionally,
+            you may provide a list of fields to return (comma-separated string).
+            The default is to return all fields. See the source for field names.
+        </description>
+        <sampleQuery>
+            select * from {table} where symbol in ("YHOO","AAPL","GOOG","MSFT")
+                 <!-- and fields = 'Symbol, Name, LastTrade, PctChange' -->
+        </sampleQuery>
+    </meta>
+    <bindings>
+        <select itemPath="quotes.quote" produces="XML">
+            <urls><url></url></urls>
+            <inputs>
+                <key id='symbol' type='xs:string' batchable='true'
+                        maxBatchItems='25' paramType='path' required='true'/>
+            <key id='fields' type='xs:string' default=''
+                        paramType='variable' required='false'/>
+            </inputs>
+            <execute><![CDATA[
+//%begin-include lib/parseNumber.js
+// Normalizes suffixed Yahoo Finance numbers to numeric values.
+// Deletes %-signs. Multiplies by scale, if provided.
+function parseNumber(n, scale) {
+    if (!n)
+        return n;
+    n = String(n);
+    if (/^\s*(?:[nN]\/?[aA])|-\s*$/.test(n))
+        return '';
+    var m = n.match(/^\s*(?:\(\s*([0-9.,]+[bBmMkK%]?)\s*\))\s*$/);
+    if (m)
+        n = '-' + m[1];
+    var m = n.match(/^\s*(?:([+-])\s*)?([0-9.,]+)\s*([BbMmKk%]?)\s*$/);
+    if (!m)
+        return n
+    var value = (m[1] == '-' ? -1 : 1) * m[2].replace(/,/g, '');
+    switch (m[3]) {
+        case 'b':
+        case 'B':
+            value = +(value + 'e9');
+            break;
+        case 'm':
+        case 'M':
+            value = +(value + 'e6');
+            break;
+        case 'k':
+        case 'K':
+            value = +(value + 'e3');
+            break;
+        default:
+            value = +value;
+    }
+    if (scale)
+        value *= scale;
+    return value;
+}
+//%end-include 28844b4b00243e230a279e71cf5d443485749fad
+
+// Maps field names to one- or two-letter field codes.
+function Dict(data) {
+    data = data.split(/\s+/);
+    for (var x=0; x<data.length; x+=2)
+        this[data[x+1]] = data[x];
+}
+
+// Produces the codestring to retrieve the requested fields and the column
+// list for YQL's CSV table. If fields is not given, assumes all fields
+// are wanted.
+Dict.prototype.codesAndFields = function(fields) {
+    if (fields)
+        fields = fields.split(/\W+/);
+    else
+        fields = Object.getOwnPropertyNames(this).sort();
+    var result = '';
+    for (var x=0; x<fields.length; x++) {
+        var name = fields[x];
+        if (name in this)
+            result += this[name];
+        else
+            throw "Bad field name '" + name + "'";
+    }
+    return {codes:result, fields:fields.join(',')};
+}
+
+var dict = new Dict(
+     "a Ask " +                 // Ask
+    "a5 AskSize " +             // Ask Size
+    "a2 AvgDailyVol " +         // Average Daily Volume
+     "b Bid " +                 // Bid
+    "b6 BidSize " +             // Bid Size
+    "b4 BookValue " +           // Book Value
+    "c1 Change " +              // Change on Last Trading Day
+    "m5 Change200Day " +        // Change From 200-day Moving Average
+    "m7 Change50Day " +         // Change From 50-day Moving Average
+    "k4 Change52WkHi " +        // Change From 52-week High
+    "j5 Change52WkLo " +        // Change From 52-week Low
+     "c ChangeAndPctChange " +  // Change & Percent Change
+    "c4 Currency " +            // Three-letter Currency Designation
+     "h DayHi " +               // Day’s High
+     "g DayLo " +               // Day’s Low
+     "m DayRange " +            // Day’s Range
+    "r1 DivPayDate " +          // Dividend Pay Date
+     "d DivPerSh " +            // Dividend/Share
+     "y DivYield " +            // Dividend Yield in %
+    "j4 EBITDA " +              // EBITDA
+     "e EPS " +                 // Earnings per Share
+    "e7 EpsEstCurYr " +         // EPS Estimate Current Year
+    "e9 EpsEstNxtQ " +          // EPS Estimate Next Quarter
+    "e8 EpsEstNxtYr " +         // EPS Estimate Next Year
+     "x Exchange " +            // Stock Exchange
+     "q ExDivDate " +           // Ex-Dividend Date
+    "f6 Float " +               // Float Shares
+    "l1 LastTrade " +           // Last Trade (Price Only)
+    "d1 LastTradeDate " +       // Last Trade Date
+    "k3 LastTradeSize " +       // Last Trade Size
+    "t1 LastTradeTime " +       // Last Trade Time
+     "l LastTradeWithTime " +   // Last Trade (With Time)
+    "j1 MarketCap " +           // Market Capitalization
+     "n Name " +                // Stock Name
+     "o Open " +                // Price at Open
+    "t8 P_1YrTarget " +         // One-Year Target Price
+    "m4 P_200DayAvg " +         // 200-day Moving Average
+    "m3 P_50DayAvg " +          // 50-day Moving Average
+     "k P_52WkHi " +            // 52-week High
+     "j P_52WkLo " +            // 52-week Low
+     "w P_52WkRange " +         // 52-week Range
+    "p2 PctChange " +           // % Change Last Trading Day
+    "m6 PctFrom200Day " +       // % Change From 200-day Moving Average
+    "m8 PctFrom50Day " +        // % Change From 50-day Moving Average
+    "k5 PctFrom52WkHi " +       // % Change From 52-week High
+    "j6 PctFrom52WkLo " +       // % Change From 52-week Low
+     "r PE " +                  // Price to Earnings Ratio
+    "r6 PeEstCurYr " +          // Price/EPS Estimate Current Year
+    "r7 PeEstNxtYr " +          // Price/EPS Estimate Next Year
+    "r5 PEG " +                 // PEG Ratio
+     "p PrevClose " +           // Previous Close
+    "p6 PriceToBook " +         // Price/Book
+    "p5 PriceToSales " +        // Price/Sales
+    "s6 Revenue " +             // Revenue
+    "j2 SharesOut " +           // Shares Outstanding
+    "s7 ShortRatio " +          // Short Ratio
+     "s Symbol " +              // Ticker Symbol
+     "v Volume");               // Volume
+
+var f = dict.codesAndFields(fields);
+var url = "http://download.finance.yahoo.com/d/?s=" + symbol + "&f=" + f.codes;
+var results = y.query("select * from csv where url='" + url +
+            "' and columns='" + f.fields + "'");
+
+var quotes = <quotes/>;
+var rows=results.results.row;
+for each (var row in rows) {
+    for each (var item in row.*) {
+        row[item.localName()] = parseNumber(item.text());
+    }
+    quotes.quote += <quote>{row.*}</quote>;
+}
+response.object = quotes;
+      ]]></execute>
+        </select>
+    </bindings>
+</table>
