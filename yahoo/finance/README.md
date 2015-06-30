@@ -38,7 +38,7 @@ The ``bin`` directory contains two commands to facilitate testing tables in scri
 
 For more info on the above, enter the command name with the `-h` parameter.
 
-###Code Inclusion (Enforcing [DRY](https://en.wikipedia.org/wiki/Don't_repeat_yourself))
+###Code Inclusion (Enforcing the [DRY](https://en.wikipedia.org/wiki/Don't_repeat_yourself) Principle)
 
 The ``update-includes.py`` command in ``bin`` scans a list of table ``.xml``
 files and refreshes any *code includes* they may contain. A code include
@@ -53,7 +53,7 @@ The long hex code on the end comment is the SHA1 hash of the text between the
 special comment lines. At update time, ``update-includes.py`` recalculates
 the SHA1 of the existing included code and compares it to the value in the
 end comment. If it matches, ``update-includes.py`` replaces the included code
-with the current include. Otherwise, it issues a warning about outside editing,
+with the current include. Otherwise, it issues a warning about separate editing,
 and the user should reissue the command with the ``--force`` option once
 inconsistencies are resolved. When first adding an include, omit the SHA1 from the end comment.
 
@@ -67,5 +67,28 @@ time avoids that problem and saves a network fetch.
 Several of the include files in ``lib`` have unit tests in ``bin``. These
 expect [``node.js``](https://nodejs.org/) to be installed.
 
-Development Environment
------------------------
+Setting up a Development Environment
+------------------------------------
+
+In order to test a modified table, you must make it available to the Yahoo
+server over the internet. The easiest way is to create a YQL environment
+file, in which you provide ``use`` statements for each table you have
+modified, followed by an ``env`` statement pointing to the official
+environment file at ``http://www.datatables.org/alltables.env``. For an
+example, see ``tables.env`` in the root of this repository.
+
+In queries run from your local machine, from the YQL Console or from your
+applications, you point the ``env`` parameter at your table.
+
+The ``test-table`` command expects the environment variable ``YQL_ENV`` to
+point to your environment file.
+
+You need to get your tables hosted. One option is to host your tables on GitHub,
+using a suitably modified version of the ``tables.env`` in the root of this
+repo. However, that requires you to push your changes before each test. A better
+idea is to run a local web server to provide Yahoo with access to your tables.
+It just needs a suitable environment file and access to your local repo. Point
+``YQL_ENV`` at its environment file, and you should be ready to develop.
+
+Once things are stable, and just want to *use* your tables instead of hack on
+them, you can switch to using GitHub as your table host.
