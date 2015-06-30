@@ -77,7 +77,7 @@ modified, followed by an ``env`` statement pointing to the official
 environment file at ``http://www.datatables.org/alltables.env``. For an
 example, see ``tables.env`` in the root of this repository.
 
-In queries run from your local machine, from the YQL Console or from your
+In queries run from your local machine, from the YQL Console, or from your
 applications, you point the ``env`` parameter at your table.
 
 The ``test-table`` command expects the environment variable ``YQL_ENV`` to
