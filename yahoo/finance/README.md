@@ -89,8 +89,8 @@ on the web and let Yahoo know its URL. The easiest way is to create a YQL
 environment file, in which you provide [``use``
 statements](https://developer.yahoo.com/yql/guide/external_tables.html) for each
 table you have modified, followed by an ``env`` statement to include the tables
-in [official environment file](store://datatables.org/alltableswithkeys). For an
-example of an environment file, see ``tables.env`` in the root of this
+in the system environment file at ``store://datatables.org/alltableswithkeys``.
+For an example of an environment file, see ``tables.env`` in the root of this
 repository.
 
 In queries run from your local machine, from the YQL Console, or from your
