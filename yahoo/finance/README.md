@@ -109,11 +109,11 @@ of each table under development in your repo.
 
 However, hosting on GitHub requires you to push your changes before each test.
 Therefore, it is more convenient to run a local web server configured to serve
-Yahoo the tables in your local repository. E.g., your server could serve the
-directory just above your repo, in which you would place a suitable environment
-file containing the absolute URLs of the files in your repo which are under
-test. Point ``YQL_ENV`` at the external URL of that environment file, and you
-should be ready to develop.
+Yahoo the tables straight from your local repository. E.g., your server could
+serve the directory just above your repo, in which you would place a suitable
+environment file containing the absolute URLs of the files in your repo which
+are under test. Point ``YQL_ENV`` at the external URL of that environment file,
+and you should be ready to develop.
 
 Once things are stable, and you just want to *use* your tables instead of hack
 on them, you can switch to using GitHub as your table host.
