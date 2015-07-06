@@ -84,19 +84,23 @@ expect [``node.js``](https://nodejs.org/) to be installed.
 Setting up a Development Environment
 ------------------------------------
 
+To work on the YQL tables, fork a YQL repository, such as this one or the [main
+one](https://github.com/yql/yql-tables), and clone it onto your local
+filesystem. Then set up your environment as described below.
+
 Before you can test a YQL table you have created or modified, you must post it
 on the web and let Yahoo know its URL. The easiest way is to create a YQL
 environment file, in which you provide [``use``
 statements](https://developer.yahoo.com/yql/guide/external_tables.html) for each
 table you have modified, followed by an ``env`` statement to include the tables
-in the system environment file at ``store://datatables.org/alltableswithkeys``.
+in the system environment file, at ``store://datatables.org/alltableswithkeys``.
 For an example of an environment file, see ``tables.env`` in the root of this
 repository.
 
 In queries run from your local machine, from the YQL Console, or from your
 applications, you point the ``env`` parameter at your table.
 
-The ``test-table`` command expects the environment variable ``YQL_ENV`` to
+Note: The ``test-table`` command expects the environment variable ``YQL_ENV`` to
 contain the URL of your environment file.
 
 ###Hosting Your Tables
@@ -110,10 +114,39 @@ of each table under development in your repo.
 However, hosting on GitHub requires you to push your changes before each test.
 Therefore, it is more convenient to run a local web server configured to serve
 Yahoo the tables straight from your local repository. E.g., your server could
-serve the directory just above your repo, in which you would place a suitable
-environment file containing the absolute URLs of the files in your repo which
-are under test. Point ``YQL_ENV`` at the external URL of that environment file,
-and you should be ready to develop.
+serve the directory just above your repo. There you would place an environment
+file containing the absolute URLs of the files in your repo which are under
+test. Point ``YQL_ENV`` at the external URL of that environment file, and you
+should be ready to develop.
 
 Once things are stable, and you just want to *use* your tables instead of hack
 on them, you can switch to using GitHub as your table host.
+
+###A Web Server
+
+In the `bin` directory there is a simple web server named `httpd.go`, written
+in Google's Go Programming Language ([download page](https://golang.org/dl/)).
+By default, it listens on port 8080 (it appears Yahoo won't fetch from other
+than ports 80 or 8080, even if there is a perfectly functional web server
+listening on another port).
+
+To use it you might:
+
+* Subscribe to a dynamic DNS service and configure your router to keep it
+  updated. E.g, if you have a D-Link router, you could use [D-Link's free
+  dynamic DNS](https://www.dlinkddns.com/). Let's assume you've done that, and
+  you are `developer.dlinkddns.com` (`ping developer.dlinkddns.com` pings your
+  home or office).
+
+* Configure your router to forward port 8080 to your development machine.
+
+* Place your `tables.env` in the directory above your local repo. Its URL
+  will now be `http://developer.dlinkddns.com:8080/tables.env`.
+
+* In your `tables.env`, provide `use` statements pointing at the tables in
+  your repo which differ from those in the community repo. E.g., if you've
+  created a new magicnumbers table, its `use` statement would be:
+  `use "http://developer.dlinkddns.com:8080/yahoo/finance/yahoo.finance.magicnumbers.xml";`
+
+* In the directory where your `tables.env` lives, issue
+  `go run yql-tables/yahoo/finance/bin/httpd.go`
