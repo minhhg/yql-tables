@@ -124,11 +124,11 @@ on them, you can switch to using GitHub as your table host.
 
 ###A Web Server
 
-In the `bin` directory there is a simple web server named `httpd.go`, written
-in Google's Go Programming Language ([download page](https://golang.org/dl/)).
-By default, it listens on port 8080 (it appears Yahoo won't fetch from other
-than ports 80 or 8080, even if there is a perfectly functional web server
-listening on another port).
+In the `bin` directory there is a simple web server named `httpd.go`, written in
+Google's Go Programming Language ([download page](https://golang.org/dl/)),
+designed for use while developing. By default, it listens on port 8080 (it
+appears Yahoo won't fetch from other than ports 80 or 8080, even if there is a
+perfectly functional web server listening on another port).
 
 To use it you might:
 
@@ -149,4 +149,4 @@ To use it you might:
   `use "http://developer.dlinkddns.com:8080/yahoo/finance/yahoo.finance.magicnumbers.xml";`
 
 * In the directory where your `tables.env` lives, issue
-  `go run yql-tables/yahoo/finance/bin/httpd.go`
+  `go run yql-tables/yahoo/finance/bin/httpd.go`.
